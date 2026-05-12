@@ -1,50 +1,66 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken"); 
-
+const jwt = require("jsonwebtoken");
 
 const app = express();
 const port = 3000;
 
-const JWT_SECRET = "supersecretkey123"; 
+// SECRET KEY
+const JWT_SECRET = "supersecretkey123";
 
-// Middleware
+// MIDDLEWARE
 app.use(express.json());
 
 // --------------------
 // IN-MEMORY DATABASE
 // --------------------
 let users = [];
+
 let posts = [
-    { id: 1, title: "First Post", author: "Amina" },
-    { id: 2, title: "Second Post", author: "Diego" }
+    {
+        id: 1,
+        title: "First Post",
+        author: "Amina"
+    },
+    {
+        id: 2,
+        title: "Second Post",
+        author: "Diego"
+    }
 ];
 
 // --------------------
-// TEST ROUTE
+// HOME ROUTE
 // --------------------
 app.get("/", (req, res) => {
     res.send("API is running...");
 });
 
 // --------------------
-// AUTH ROUTES
+// REGISTER ROUTE
 // --------------------
-
-// REGISTER
 app.post("/api/auth/register", async (req, res) => {
+
     try {
+
         const { username, email, password } = req.body;
 
         // validation
         if (!username || !email || !password) {
-            return res.status(400).json({ message: "All fields are required" });
+            return res.status(400).json({
+                message: "All fields are required"
+            });
         }
 
-        // check if user exists
-        const existingUser = users.find(u => u.email === email);
+        // check existing user
+        const existingUser = users.find(
+            user => user.email === email
+        );
+
         if (existingUser) {
-            return res.status(409).json({ message: "User already exists" });
+            return res.status(409).json({
+                message: "User already exists"
+            });
         }
 
         // hash password
@@ -58,6 +74,7 @@ app.post("/api/auth/register", async (req, res) => {
             password: hashedPassword
         };
 
+        // save user
         users.push(newUser);
 
         res.status(201).json({
@@ -70,34 +87,70 @@ app.post("/api/auth/register", async (req, res) => {
         });
 
     } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
+
+        res.status(500).json({
+            message: "Server error",
+            error: error.message
+        });
+
     }
+
 });
 
-// LOGIN
+// --------------------
+// LOGIN ROUTE
+// --------------------
 app.post("/api/auth/login", async (req, res) => {
+
     try {
+
         const { email, password } = req.body;
 
         // validation
         if (!email || !password) {
-            return res.status(400).json({ message: "All fields are required" });
+            return res.status(400).json({
+                message: "All fields are required"
+            });
         }
 
         // find user
-        const user = users.find(u => u.email === email);
+        const user = users.find(
+            user => user.email === email
+        );
+
         if (!user) {
-            return res.status(404).json({ message: "User not found" });
+            return res.status(404).json({
+                message: "User not found"
+            });
         }
 
-        // check password
-        const isMatch = await bcrypt.compare(password, user.password);
+        // compare password
+        const isMatch = await bcrypt.compare(
+            password,
+            user.password
+        );
+
         if (!isMatch) {
-            return res.status(401).json({ message: "Invalid credentials" });
+            return res.status(401).json({
+                message: "Invalid credentials"
+            });
         }
+
+        // CREATE TOKEN
+        const token = jwt.sign(
+            {
+                id: user.id,
+                email: user.email
+            },
+            JWT_SECRET,
+            {
+                expiresIn: "1h"
+            }
+        );
 
         res.status(200).json({
             message: "Login successful",
+            token,
             user: {
                 id: user.id,
                 username: user.username,
@@ -106,30 +159,71 @@ app.post("/api/auth/login", async (req, res) => {
         });
 
     } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
+
+        res.status(500).json({
+            message: "Server error",
+            error: error.message
+        });
+
     }
+
 });
 
 // --------------------
-// POSTS (from your earlier code)
+// AUTH MIDDLEWARE
 // --------------------
-app.get("/api/posts", (req, res) => {
+function authMiddleware(req, res, next) {
 
-    
-    const token = jwt.sign(
-        { id: user.id, email: user.email },
-        JWT_SECRET,
-        { expiresIn: "1h" }
-    );
+    // get authorization header
+    const authHeader = req.headers.authorization;
 
-    res.json(posts);
-    
+    // check if token exists
+    if (!authHeader) {
+        return res.status(401).json({
+            message: "No token provided"
+        });
+    }
+
+    // extract token
+    const token = authHeader.split(" ")[1];
+
+    try {
+
+        // verify token
+        const decoded = jwt.verify(token, JWT_SECRET);
+
+        // store user data
+        req.user = decoded;
+
+        // continue
+        next();
+
+    } catch (error) {
+
+        return res.status(401).json({
+            message: "Invalid token"
+        });
+
+    }
+
+}
+
+// --------------------
+// PROTECTED POSTS ROUTE
+// --------------------
+app.get("/api/posts", authMiddleware, (req, res) => {
+
+    res.json({
+        message: "Protected route accessed",
+        loggedInUser: req.user,
+        posts
+    });
+
 });
 
 // --------------------
-// START SERVER
+// SERVER START
 // --------------------
 app.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);
 });
-
