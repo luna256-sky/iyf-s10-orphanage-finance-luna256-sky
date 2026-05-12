@@ -37,6 +37,17 @@ app.get("/", (req, res) => {
 });
 
 // --------------------
+// HEALTH CHECK ROUTE (NEW - SAFE ADDITION)
+// --------------------
+app.get("/api/health", (req, res) => {
+    res.json({
+        status: "OK",
+        message: "Server is running fine",
+        time: new Date()
+    });
+});
+
+// --------------------
 // REGISTER ROUTE
 // --------------------
 app.post("/api/auth/register", async (req, res) => {
@@ -174,28 +185,20 @@ app.post("/api/auth/login", async (req, res) => {
 // --------------------
 function authMiddleware(req, res, next) {
 
-    // get authorization header
     const authHeader = req.headers.authorization;
 
-    // check if token exists
     if (!authHeader) {
         return res.status(401).json({
             message: "No token provided"
         });
     }
 
-    // extract token
     const token = authHeader.split(" ")[1];
 
     try {
 
-        // verify token
         const decoded = jwt.verify(token, JWT_SECRET);
-
-        // store user data
         req.user = decoded;
-
-        // continue
         next();
 
     } catch (error) {
